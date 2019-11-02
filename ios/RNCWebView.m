@@ -13,6 +13,17 @@
 
 #import "objc/runtime.h"
 
+typedef NS_OPTIONS(NSUInteger, _WKWebsiteDeviceOrientationAndMotionAccessPolicy) {
+    _WKWebsiteDeviceOrientationAndMotionAccessPolicyAsk,
+    _WKWebsiteDeviceOrientationAndMotionAccessPolicyGrant,
+    _WKWebsiteDeviceOrientationAndMotionAccessPolicyDeny,
+};
+@class WKWebsiteDataStore;
+@interface _WKWebsitePolicies : NSObject
+@property (nonatomic) _WKWebsiteDeviceOrientationAndMotionAccessPolicy deviceOrientationAndMotionAccessPolicy;
+@end
+
+
 static NSTimer *keyboardTimer;
 static NSString *const MessageHandlerName = @"ReactNativeWebView";
 static NSURLCredential* clientAuthenticationCredential;
@@ -798,11 +809,6 @@ static NSDictionary* customCertificatesForHost;
   return window;
 }
 
-
-/**
- * Decides whether to allow or cancel a navigation.
- * @see https://fburl.com/42r9fxob
- */
 - (void)                  webView:(WKWebView *)webView
   decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
                   decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
@@ -856,6 +862,74 @@ static NSDictionary* customCertificatesForHost;
   decisionHandler(WKNavigationActionPolicyAllow);
 }
 
+//#import <WebKit/WKFoundation.h>
+//#import <WebKit/WKWebpagePreferencesPrivate.h>
+
+
+
+- (void)_webView:(WKWebView *)webView
+  decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
+  decisionHandler:(void (^)(WKNavigationActionPolicy, _WKWebsitePolicies *))decisionHandler {
+
+  _WKWebsitePolicies *websitePolicies = [[_WKWebsitePolicies alloc] init];
+
+  static NSDictionary<NSNumber *, NSString *> *navigationTypes;
+  static dispatch_once_t onceToken;
+
+  dispatch_once(&onceToken, ^{
+    navigationTypes = @{
+      @(WKNavigationTypeLinkActivated): @"click",
+      @(WKNavigationTypeFormSubmitted): @"formsubmit",
+      @(WKNavigationTypeBackForward): @"backforward",
+      @(WKNavigationTypeReload): @"reload",
+      @(WKNavigationTypeFormResubmitted): @"formresubmit",
+      @(WKNavigationTypeOther): @"other",
+    };
+  });
+
+  WKNavigationType navigationType = navigationAction.navigationType;
+  NSURLRequest *request = navigationAction.request;
+
+  if (_onShouldStartLoadWithRequest) {
+    NSMutableDictionary<NSString *, id> *event = [self baseEvent];
+    [event addEntriesFromDictionary: @{
+      @"url": (request.URL).absoluteString,
+      @"mainDocumentURL": (request.mainDocumentURL).absoluteString,
+      @"navigationType": navigationTypes[@(navigationType)]
+    }];
+    if (![self.delegate webView:self
+      shouldStartLoadForRequest:event
+                   withCallback:_onShouldStartLoadWithRequest]) {
+      decisionHandler(WKNavigationActionPolicyCancel,websitePolicies);
+      return;
+    }
+  }
+
+  if (_onLoadingStart) {
+    // We have this check to filter out iframe requests and whatnot
+    BOOL isTopFrame = [request.URL isEqual:request.mainDocumentURL];
+    if (isTopFrame) {
+      NSMutableDictionary<NSString *, id> *event = [self baseEvent];
+      [event addEntriesFromDictionary: @{
+        @"url": (request.URL).absoluteString,
+        @"navigationType": navigationTypes[@(navigationType)]
+      }];
+      _onLoadingStart(event);
+    }
+  }
+
+  @try {
+    if ([websitePolicies respondsToSelector:@selector(setDeviceOrientationAndMotionAccessPolicy:)]) {
+      [websitePolicies setDeviceOrientationAndMotionAccessPolicy:_WKWebsiteDeviceOrientationAndMotionAccessPolicyGrant];
+    } else {
+      NSLog(@"websitePolicies: no selector");
+    }
+  } @catch(NSException *e) {
+    NSLog(@"websitePolicies: didnt like me");
+  }
+  decisionHandler(WKNavigationActionPolicyAllow,websitePolicies);
+}
+
 /**
  * Called when the web view’s content process is terminated.
  * @see https://developer.apple.com/documentation/webkit/wknavigationdelegate/1455639-webviewwebcontentprocessdidtermi?language=objc
@@ -892,7 +966,7 @@ static NSDictionary* customCertificatesForHost;
         _onHttpError(event);
       }
     }
-  }  
+  }
 
   decisionHandler(WKNavigationResponsePolicyAllow);
 }
