@@ -808,7 +808,10 @@ static NSDictionary* customCertificatesForHost;
   }
   return window;
 }
-
+/**
+ * Decides whether to allow or cancel a navigation.
+ * @see https://fburl.com/42r9fxob
+ */
 - (void)                  webView:(WKWebView *)webView
   decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
                   decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
@@ -861,11 +864,6 @@ static NSDictionary* customCertificatesForHost;
   // Allow all navigation by default
   decisionHandler(WKNavigationActionPolicyAllow);
 }
-
-//#import <WebKit/WKFoundation.h>
-//#import <WebKit/WKWebpagePreferencesPrivate.h>
-
-
 
 - (void)_webView:(WKWebView *)webView
   decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
