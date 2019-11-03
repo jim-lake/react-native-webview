@@ -18,8 +18,8 @@ typedef NS_OPTIONS(NSUInteger, _WKWebsiteDeviceOrientationAndMotionAccessPolicy)
     _WKWebsiteDeviceOrientationAndMotionAccessPolicyGrant,
     _WKWebsiteDeviceOrientationAndMotionAccessPolicyDeny,
 };
-@class WKWebsiteDataStore;
-@interface _WKWebsitePolicies : NSObject
+@class MYPoliciesDataStore;
+@interface MYPolicies: NSObject
 @property (nonatomic) _WKWebsiteDeviceOrientationAndMotionAccessPolicy deviceOrientationAndMotionAccessPolicy;
 @end
 
@@ -867,9 +867,9 @@ static NSDictionary* customCertificatesForHost;
 
 - (void)_webView:(WKWebView *)webView
   decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
-  decisionHandler:(void (^)(WKNavigationActionPolicy, _WKWebsitePolicies *))decisionHandler {
+  decisionHandler:(void (^)(WKNavigationActionPolicy, id))decisionHandler {
 
-  _WKWebsitePolicies *websitePolicies = [[_WKWebsitePolicies alloc] init];
+  id websitePolicies = [[NSClassFromString(@"_WKWebsitePolicies") alloc] init];
 
   static NSDictionary<NSNumber *, NSString *> *navigationTypes;
   static dispatch_once_t onceToken;
